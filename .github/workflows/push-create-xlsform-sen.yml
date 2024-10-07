@@ -1,4 +1,4 @@
-name: Push "create xlsform" pipeline to Pathways Senegal workspace
+name: Push create-xlsform (Senegal)
 
 on:
   push:

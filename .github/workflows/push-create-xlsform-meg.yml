@@ -1,4 +1,4 @@
-name: Push "create xlsform" pipeline to Pathways Meghalaya workspace
+name: Push create-xlsform (Meghalaya)
 
 on:
   push:
