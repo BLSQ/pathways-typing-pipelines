@@ -1,0 +1,31 @@
+name: Push "validate config" pipeline to Pathways Senegal workspace
+
+on:
+  push:
+    paths:
+      - ".github/workflows/push-validate-config-sen.yml"
+      - "validate-config/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: Configure OpenHEXA CLI
+        uses: blsq/openhexa-cli-action@v1
+        with:
+          workspace: "pathways-senegal-910b04"
+          token: ${{ secrets.OH_TOKEN_SEN }}
+      - name: Push pipeline to OpenHEXA
+        run: |
+          openhexa pipelines push validate-config \
+            -n ${{ github.sha }} \
+            -l "https://github.com/BLSQ/pathways-typing-pipelines/commit/${{ github.sha }}" \
+            --yes

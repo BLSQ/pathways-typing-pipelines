@@ -1,0 +1,1 @@
+pathways-typing @ git+https://github.com/BLSQ/pathways-typing@main
