@@ -86,6 +86,8 @@ def generate_form(
     config: dict, src_cart_urban: Path, src_cart_rural: Path, output_dir: Path
 ):
     """Build XLSForm from CART outputs and configuration spreadsheet."""
+    version = datetime.now().strftime("%Y%m%d%H%M%S")
+
     # load CART outputs as binary trees
     with open(src_cart_rural) as f:
         cart_rural = json.load(f)
@@ -94,7 +96,7 @@ def generate_form(
                 len(cart_rural)
             )
         )
-    root_rural = build_binary_tree(cart_rural)
+    root_rural = build_binary_tree(cart_rural, strata="rural")
     with open(src_cart_urban) as f:
         cart_urban = json.load(f)
         current_run.log_info(
@@ -102,7 +104,7 @@ def generate_form(
                 len(cart_urban)
             )
         )
-    root_urban = build_binary_tree(cart_urban)
+    root_urban = build_binary_tree(cart_urban, strata="urban")
 
     validate_config(config_data=config, cart_urban=cart_urban, cart_rural=cart_rural)
 
@@ -113,6 +115,15 @@ def generate_form(
             questions_config=config["questions"], choices_config=config["choices"]
         )
         node.relevant = node.xpath_condition()
+
+    # generate mermaid diagram for CART
+    mermaid_cart = cart_diagram(root)
+    fpath = output_dir / version / "mermaid_diagram_cart.txt"
+    fpath.parent.mkdir(parents=True, exist_ok=True)
+    with open(fpath, "w") as f:
+        f.write(mermaid_cart)
+    current_run.add_file_output(str(fpath.absolute()))
+    current_run.log_info("Generated mermaid diagram for CART")
 
     n_nodes = sum([1 for _ in root.preorder()])
     current_run.log_info(
@@ -137,23 +148,13 @@ def generate_form(
                 **option["config"],
             )
 
-    version = datetime.now().strftime("%Y%m%d%H%M%S")
-
-    # generate mermaid diagrams
-    mermaid_cart = cart_diagram(root)
-    fpath = output_dir / version / "mermaid_diagram_cart.txt"
-    fpath.parent.mkdir(parents=True, exist_ok=True)
-    with open(fpath, "w") as f:
-        f.write(mermaid_cart)
-    current_run.add_file_output(str(fpath.absolute()))
-
+    # generate mermaid diagram for typing form
     mermaid_form = form_diagram(root)
     fpath = output_dir / version / "mermaid_diagram_form.txt"
     with open(fpath, "w") as f:
         f.write(mermaid_form)
     current_run.add_file_output(str(fpath.absolute()))
-
-    current_run.log_info("Generated mermaid diagrams for CART and form")
+    current_run.log_info("Generated mermaid diagram for typing form")
 
     # build xlsform and validate with pyxform
     fpath = output_dir / version / f"form_{version}.xlsx"
