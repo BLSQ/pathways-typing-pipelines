@@ -104,9 +104,9 @@ def load_dataset(
     urban: list[dict] = None
     rural: list[dict] = None
     for f in ds.files:
-        if f.filename == "urban_frame.json":
+        if f.filename == "frame_urban.json":
             urban = json.loads(f.read().decode())
-        if f.filename == "rural_frame.json":
+        if f.filename == "frame_rural.json":
             rural = json.loads(f.read().decode())
 
     if urban is None:
