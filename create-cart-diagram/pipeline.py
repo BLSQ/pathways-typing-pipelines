@@ -140,9 +140,8 @@ def generate_diagram(
     current_run.log_info("Merged urban and rural CARTs")
 
     mermaid = cart_diagram(root)
-    current_run.log_info(
-        f"Generated CART mermaid diagram ({len(mermaid.split('\n'))} lines)"
-    )
+    n_lines = len(mermaid.split("\n"))
+    current_run.log_info(f"Generated CART mermaid diagram ({n_lines} lines)")
 
     fp = output_dir / f"{version_name}_diagram.txt"
     with open(fp, "w") as f:
