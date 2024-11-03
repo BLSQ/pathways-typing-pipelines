@@ -139,16 +139,33 @@ def generate_diagram(
     version_name : str
         The name of the dataset version
     """
-    urban = build_binary_tree(urban_cart, strata="urban")
-    current_run.log_info(f"Loaded urban CART ({len(urban)} nodes)")
-    rural = build_binary_tree(rural_cart, strata="rural")
-    current_run.log_info(f"Loaded rural CART ({len(rural)} nodes)")
-    root = merge_trees(urban, rural)
-    current_run.log_info("Merged urban and rural CARTs")
+    try:
+        urban = build_binary_tree(urban_cart, strata="urban")
+        current_run.log_info("Successfully built urban tree")
+    except Exception as e:
+        current_run.log_error("Could not build urban tree")
+        raise e
 
-    mermaid = cart_diagram(root)
-    n_lines = len(mermaid.split("\n"))
-    current_run.log_info(f"Generated CART mermaid diagram ({n_lines} lines)")
+    try:
+        rural = build_binary_tree(rural_cart, strata="rural")
+        current_run.log_info("Successfully built rural tree")
+    except Exception as e:
+        current_run.log_error("Could not build rural tree")
+        raise e
+
+    try:
+        root = merge_trees(urban, rural)
+        current_run.log_info("Successfully merged urban and rural trees")
+    except Exception as e:
+        current_run.log_error("Could not merge urban and rural trees")
+        raise e
+
+    try:
+        mermaid = cart_diagram(root)
+        current_run.log_info("Successfully generated mermaid diagram")
+    except Exception as e:
+        current_run.log_error("Could not generate mermaid diagram")
+        raise e
 
     fp = output_dir / f"{version_name}_diagram.txt"
     with open(fp, "w") as f:
