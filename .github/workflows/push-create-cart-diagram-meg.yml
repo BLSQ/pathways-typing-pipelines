@@ -1,0 +1,31 @@
+name: Push create-cart-diagram (meghalaya)
+
+on:
+  push:
+    paths:
+      - ".github/workflows/push-create-cart-diagram-meg.yml"
+      - "create-cart-diagram/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: Configure OpenHEXA CLI
+        uses: blsq/openhexa-cli-action@v1
+        with:
+          workspace: "pathways-meghalaya-558459"
+          token: ${{ secrets.OH_TOKEN_MEG }}
+      - name: Push pipeline to OpenHEXA
+        run: |
+          openhexa pipelines push create-cart-diagram \
+            -n ${{ github.sha }} \
+            -l "https://github.com/BLSQ/pathways-typing-pipelines/commit/${{ github.sha }}" \
+            --yes
