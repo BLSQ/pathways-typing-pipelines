@@ -51,6 +51,7 @@ def create_cart_diagram(
             version,
             datetime.now().strftime("%Y-%m-%d_%H:%M:%S"),
         )
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     generate_diagram(
         urban_cart=urban,
