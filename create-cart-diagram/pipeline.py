@@ -24,6 +24,22 @@ from pathways.typing.tree import build_binary_tree, merge_trees
     required=False,
 )
 @parameter(
+    "add_choice_labels",
+    name="Add choice labels to links",
+    help="Add valid choice labels to relationship arrows instead of yes/no",
+    type=bool,
+    required=False,
+    default=False,
+)
+@parameter(
+    "add_node_id",
+    name="Add node indexes to mermaid shapes",
+    help="Add node indexes to mermaid shapes in addition to split rule",
+    type=bool,
+    required=False,
+    default=True,
+)
+@parameter(
     "output_dir",
     name="Output directory",
     help="If not specified, outputs will be saved into `workspace/typing/data/output/cart_diagram`",
@@ -31,7 +47,11 @@ from pathways.typing.tree import build_binary_tree, merge_trees
     required=False,
 )
 def create_cart_diagram(
-    cart_outputs: Dataset, version_name: Optional[str], output_dir: Optional[str]
+    cart_outputs: Dataset,
+    version_name: Optional[str],
+    add_choice_labels: Optional[bool],
+    add_node_id: Optional[bool],
+    output_dir: Optional[str],
 ):
     """Create a CART diagram from CART outputs."""
 
