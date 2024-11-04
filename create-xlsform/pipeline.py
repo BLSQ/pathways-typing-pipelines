@@ -7,6 +7,7 @@ from pathways.typing.config import (
     get_choices,
     get_options,
     get_questions,
+    get_settings,
     read_spreadsheet,
     validate_config,
 )
@@ -78,6 +79,7 @@ def load_configuration(url: str) -> dict:
     config["questions"] = get_questions(spreadsheet)
     config["choices"] = get_choices(spreadsheet)
     config["options"] = get_options(spreadsheet)
+    config["settings"] = get_settings(spreadsheet)
 
     return config
 
@@ -158,9 +160,11 @@ def generate_form(
 
     # build xlsform and validate with pyxform
     fpath = output_dir / version / f"form_{version}.xlsx"
-    survey = survey_worksheet(root)
+    survey = survey_worksheet(root=root, settings_config=config["settings"])
     choices = choices_worksheet(root)
-    build_xlsform(survey, choices, fpath)
+    build_xlsform(
+        survey=survey, choices=choices, settings=config["settings"], dst_file=fpath
+    )
     validate_xlsform(fpath)
     current_run.log_info(f"XLSForm successfully generated at {fpath}")
     current_run.add_file_output(str(fpath.absolute()))
