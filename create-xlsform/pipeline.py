@@ -111,7 +111,7 @@ def generate_form(
     validate_config(config_data=config, cart_urban=cart_urban, cart_rural=cart_rural)
 
     # merge both binary trees into a single one, and set node attributes from config
-    root = merge_trees(root_rural, root_urban)
+    root = merge_trees(root_urban=root_urban, root_rural=root_rural)
     for node in root.preorder():
         node.from_config(
             questions_config=config["questions"], choices_config=config["choices"]
