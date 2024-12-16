@@ -1,25 +1,37 @@
+from __future__ import annotations
+
 import json
 from datetime import datetime
 from pathlib import Path
 
-from openhexa.sdk import current_run, parameter, pipeline, workspace
+import polars as pl
+import xlsxwriter
+from openhexa.sdk import Dataset, current_run, parameter, pipeline, workspace
 from pathways.typing.config import (
-    get_choices,
-    get_options,
-    get_questions,
+    get_choices_config,
+    get_options_config,
+    get_questions_config,
+    get_segments_config,
     get_settings,
-    read_spreadsheet,
-    validate_config,
+    read_google_spreadsheet,
 )
-from pathways.typing.customize import calculate, split
-from pathways.typing.mermaid import cart_diagram, form_diagram
+from pathways.typing.mermaid import create_form_diagram
+from pathways.typing.options import (
+    add_segment_notes,
+    apply_options,
+    enforce_relevance,
+    set_choice_filters,
+    skip_duplicate_questions,
+)
 from pathways.typing.tree import (
-    build_binary_tree,
-    build_xlsform,
-    choices_worksheet,
+    build_tree,
+    create_node_question,
+    get_choices_rows,
+    get_settings_rows,
+    get_survey_rows,
+    get_xlsform_relevance,
     merge_trees,
-    survey_worksheet,
-    validate_xlsform,
+    parse_rpart,
 )
 
 
@@ -27,45 +39,119 @@ from pathways.typing.tree import (
 @parameter(
     "config_spreadsheet",
     name="Configuration spreadsheet",
-    help="Configuration spreadsheet URL in Google Sheets. Spreadsheet has to be shared publicly.",
+    help="Configuration spreadsheet URL in Google Sheets",
     type=str,
     default="https://docs.google.com/spreadsheets/d/1BZPUBuF8sbLsegljCbYGeOXW6kYZmwaljQvIT8FC4DY/edit?usp=sharing",
     required=True,
 )
+@pipeline("create-cart-diagram", name="Create CART diagram")
 @parameter(
-    "src_cart_urban",
-    name="CART output (urban)",
-    help="JSON cart output for urban strata",
-    type=str,
-    default="data/sen/frame_urban.json",
+    "cart_outputs",
+    name="CART outputs",
+    help="OpenHEXA dataset containing JSON CART outputs",
+    type=Dataset,
     required=True,
 )
 @parameter(
-    "src_cart_rural",
-    name="CART output (rural)",
-    help="JSON cart output for rural strata",
+    "version_name",
+    name="Dataset version",
+    help="You can specify the dataset version to use. If not specified, latest version is used.",
     type=str,
-    default="data/sen/frame_rural.json",
-    required=True,
+    required=False,
 )
 @parameter(
     "output_dir",
     name="Output directory",
     help="Output directory where generated form is saved",
     type=str,
-    default="data/sen",
+    default="typing/data/xlsform",
     required=True,
 )
 def create_xlsform(
-    config_spreadsheet: str, src_cart_urban: str, src_cart_rural: str, output_dir: str
-):
+    config_spreadsheet: str, cart_outputs: Dataset, version_name: str, output_dir: str
+) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
-    src_cart_urban = Path(workspace.files_path, src_cart_urban)
-    src_cart_rural = Path(workspace.files_path, src_cart_rural)
-    output_dir = Path(workspace.files_path, output_dir)
+    cart_urban, cart_rural, cart_version = load_dataset(
+        dataset=cart_outputs, version_name=version_name
+    )
+
+    output_dir = Path(
+        workspace.files_path,
+        output_dir,
+        cart_version,
+        datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     config = load_configuration(url=config_spreadsheet)
-    generate_form(config, src_cart_urban, src_cart_rural, output_dir)
+
+    generate_form(
+        config=config,
+        urban_cart=cart_urban,
+        rural_cart=cart_rural,
+        output_dir=output_dir,
+        version=cart_version,
+    )
+
+
+def load_dataset(
+    dataset: Dataset, version_name: str | None = None
+) -> tuple[list[dict], list[dict], str]:
+    """Load urban and rural JSON files from dataset.
+
+    Parameters
+    ----------
+    dataset : Dataset
+        The dataset containing the urban and rural JSON files.
+    version_name : str, optional
+        The name of the dataset version to use. If not specified, the latest version is used.
+
+    Return
+    ------
+    list[dict]
+        The urban JSON-like CART data
+    list[dict]
+        The rural JSON-like CART data
+    str
+        The name of the dataset version
+    """
+    ds: Dataset = None
+
+    # if a dataset version has been specified, use it
+    # use the latest dataset version by default
+    if version_name:
+        for version in dataset.versions:
+            if version.name == version_name:
+                ds = version
+                break
+
+            if ds is None:
+                msg = f"Dataset version `{version_name}` not found"
+                current_run.log_error(msg)
+                raise FileNotFoundError(msg)
+
+    else:
+        ds = dataset.latest_version
+
+    # load urban & rural json files from dataset
+    urban: list[dict] = None
+    rural: list[dict] = None
+    for f in ds.files:
+        if f.filename.endswith("cart_urban.json"):
+            urban = json.loads(f.read().decode())
+        if f.filename.endswith("cart_rural.json"):
+            rural = json.loads(f.read().decode())
+
+    if urban is None:
+        msg = "Urban JSON file not found in dataset"
+        current_run.log_error(msg)
+        raise FileNotFoundError(msg)
+    if rural is None:
+        msg = "Rural JSON file not found in dataset"
+        current_run.log_error(msg)
+        raise FileNotFoundError(msg)
+
+    return urban, rural, ds.name
 
 
 def load_configuration(url: str) -> dict:
@@ -75,99 +161,110 @@ def load_configuration(url: str) -> dict:
 
     config = {}
 
-    spreadsheet = read_spreadsheet(url, credentials)
-    config["questions"] = get_questions(spreadsheet)
-    config["choices"] = get_choices(spreadsheet)
-    config["options"] = get_options(spreadsheet)
-    config["settings"] = get_settings(spreadsheet)
+    spreadsheet = read_google_spreadsheet(url=url, credentials=credentials)
+
+    config["questions"] = get_questions_config(
+        spreadsheet.get_worksheet("questions").get_all_records(head=2)
+    )
+    config["choices"] = get_choices_config(
+        spreadsheet.get_worksheet("choices").get_all_records(head=2)
+    )
+    config["options"] = get_options_config(
+        spreadsheet.get_worksheet("options").get_all_records(head=2)
+    )
+    config["segments"] = get_segments_config(
+        spreadsheet.get_worksheet("segments").get_all_records(head=2)
+    )
+    config["settings"] = get_settings(spreadsheet.get_worksheet("settings").get_all_records(head=2))
 
     return config
 
 
 def generate_form(
-    config: dict, src_cart_urban: Path, src_cart_rural: Path, output_dir: Path
-):
+    config: dict, urban_cart: dict, rural_cart: dict, output_dir: Path, version: str
+) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
-    version = datetime.now().strftime("%Y%m%d%H%M%S")
+    rural = parse_rpart(
+        nodes=rural_cart["nodes"],
+        ylevels=rural_cart["ylevels"],
+        xlevels=rural_cart["xlevels"],
+        csplit=rural_cart["csplit"],
+    )
+    current_run.log_info("Successfully parsed rural CART")
 
-    # load CART outputs as binary trees
-    with open(src_cart_rural) as f:
-        cart_rural = json.load(f)
-        current_run.log_info(
-            "Successfully loaded CART output for rural strata ({} nodes)".format(
-                len(cart_rural)
-            )
-        )
-    root_rural = build_binary_tree(cart_rural, strata="rural")
-    with open(src_cart_urban) as f:
-        cart_urban = json.load(f)
-        current_run.log_info(
-            "Successfully loaded CART output for urban strata ({} nodes)".format(
-                len(cart_urban)
-            )
-        )
-    root_urban = build_binary_tree(cart_urban, strata="urban")
+    urban = parse_rpart(
+        nodes=urban_cart["nodes"],
+        ylevels=urban_cart["ylevels"],
+        xlevels=urban_cart["xlevels"],
+        csplit=urban_cart["csplit"],
+    )
+    current_run.log_info("Successfully parsed urban CART")
 
-    validate_config(config_data=config, cart_urban=cart_urban, cart_rural=cart_rural)
+    root_rural = build_tree(rural, strata="rural")
+    root_urban = build_tree(urban, strata="urban")
+    root = merge_trees(root_rural, root_urban)
+    current_run.log_info("Successfully rebuilt CART tree")
 
-    # merge both binary trees into a single one, and set node attributes from config
-    root = merge_trees(root_urban=root_urban, root_rural=root_rural)
     for node in root.preorder():
-        node.from_config(
-            questions_config=config["questions"], choices_config=config["choices"]
+        node.question = create_node_question(
+            node,
+            question_config=config["questions"],
+            choices_config=config["choices"],
+            segments_config=config["segments"],
         )
-        node.relevant = node.xpath_condition()
+    current_run.log_info("Initialized node questions")
 
-    # generate mermaid diagram for CART
-    mermaid_cart = cart_diagram(root)
-    fpath = output_dir / version / "mermaid_diagram_cart.txt"
-    fpath.parent.mkdir(parents=True, exist_ok=True)
-    with open(fpath, "w") as f:
-        f.write(mermaid_cart)
-    current_run.add_file_output(str(fpath.absolute()))
-    current_run.log_info("Generated mermaid diagram for CART")
+    for node in root.preorder():
+        relevant = get_xlsform_relevance(node)
+        node.question.conditions = [relevant] if relevant else []
+    current_run.log_info("Initialized node relevance rules")
 
-    n_nodes = sum([1 for _ in root.preorder()])
-    current_run.log_info(
-        "Merged rural and urban trees into a single tree with {} nodes".format(n_nodes)
+    root = apply_options(
+        root,
+        options_config=config["options"],
+        questions_config=config["questions"],
+        choices_config=config["choices"],
     )
+    current_run.log_info("Applied custom options")
 
-    # apply custom options from config spreadsheet
-    for option in config["options"]:
-        if option["option"] == "split":
-            root = split(
-                root=root,
-                questions_config=config["questions"],
-                choices_config=config["choices"],
-                **option["config"],
-            )
-
-        elif option["option"] == "calculate":
-            root = calculate(
-                root=root,
-                questions_config=config["questions"],
-                choices_config=config["choices"],
-                **option["config"],
-            )
-
-    # generate mermaid diagram for typing form
-    mermaid_form = form_diagram(root)
-    fpath = output_dir / version / "mermaid_diagram_form.txt"
-    with open(fpath, "w") as f:
-        f.write(mermaid_form)
-    current_run.add_file_output(str(fpath.absolute()))
-    current_run.log_info("Generated mermaid diagram for typing form")
-
-    # build xlsform and validate with pyxform
-    fpath = output_dir / version / f"form_{version}.xlsx"
-    survey = survey_worksheet(root=root, settings_config=config["settings"])
-    choices = choices_worksheet(root)
-    build_xlsform(
-        survey=survey, choices=choices, settings=config["settings"], dst_file=fpath
+    root = add_segment_notes(
+        root, settings_config=config["settings"], segments_config=config["segments"]
     )
-    validate_xlsform(fpath)
-    current_run.log_info(f"XLSForm successfully generated at {fpath}")
-    current_run.add_file_output(str(fpath.absolute()))
+    current_run.log_info("Added segment notes")
+
+    root = enforce_relevance(root)
+    current_run.log_info("Enforced relevance rules")
+
+    root = set_choice_filters(root)
+    current_run.log_info("Filtered available choices")
+
+    root = skip_duplicate_questions(root)
+    current_run.log_info("Merged duplicate questions")
+
+    rows = get_survey_rows(root, typing_group_label={"label::English (en)": "Typing"})
+    survey = pl.DataFrame(rows)
+
+    rows = get_choices_rows(root)
+    choices = pl.DataFrame(rows)
+
+    rows = get_settings_rows(settings_config=config["settings"])
+    settings = pl.DataFrame(rows)
+
+    dst_file = Path(output_dir, f"{version}.xlsx")
+
+    with xlsxwriter.Workbook(dst_file) as wb:
+        survey.write_excel(wb, worksheet="survey")
+        choices.write_excel(wb, worksheet="choices")
+        settings.write_excel(wb, worksheet="settings")
+
+    current_run.log_info(f"Successfully generated XLSForm at {dst_file}")
+    current_run.add_file_output(dst_file.as_posix())
+
+    mermaid = create_form_diagram(root, skip_notes=True)
+    fp = output_dir / f"{version}.txt"
+    with fp.open("w") as f:
+        f.write(mermaid)
+    current_run.add_file_output(fp.as_posix())
 
 
 if __name__ == "__main__":
