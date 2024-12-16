@@ -44,7 +44,6 @@ from pathways.typing.tree import (
     default="https://docs.google.com/spreadsheets/d/1BZPUBuF8sbLsegljCbYGeOXW6kYZmwaljQvIT8FC4DY/edit?usp=sharing",
     required=True,
 )
-@pipeline("create-cart-diagram", name="Create CART diagram")
 @parameter(
     "cart_outputs",
     name="CART outputs",
