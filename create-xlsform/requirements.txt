@@ -1,1 +1,2 @@
 pathways-typing @ git+https://github.com/BLSQ/pathways-typing@main
+openhexa.sdk ==1.0.0
