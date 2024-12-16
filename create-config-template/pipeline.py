@@ -55,6 +55,7 @@ def create_config_template(
         msg = "No segmentation file found"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
+    current_run.log_info("Loaded segmentation outputs")
 
     cart_rural = None
     ds = cart_outputs.latest_version
@@ -65,6 +66,7 @@ def create_config_template(
         msg = "No cart_rural.json file found"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
+    current_run.log_info("Loaded CART outputs for rural strata")
 
     cart_urban = None
     for f in ds.files:
@@ -74,6 +76,7 @@ def create_config_template(
         msg = "No cart_urban.json file found"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
+    current_run.log_info("Loaded CART outputs for urban strata")
 
     output_dir = Path(workspace.files_path, output_dir)
     output_dir = output_dir / datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
@@ -86,6 +89,9 @@ def create_config_template(
     unique_values = get_unique_values(segmentation, variables)
     dtypes = guess_data_types(unique_values)
 
+    current_run.log_info(f"Found {len(variables)} segmentation variables")
+    current_run.log_info(f"Collected unique_values for {len(unique_values)} categorical variables")
+
     with xlsxwriter.Workbook(output_f) as workbook:
         write_questions(workbook, variables=variables, dtypes=dtypes)
         write_choices(workbook, variables=variables, unique_values=unique_values, dtypes=dtypes)
@@ -94,6 +100,9 @@ def create_config_template(
             workbook, ylevels_rural=cart_rural["ylevels"], ylevels_urban=cart_urban["ylevels"]
         )
         write_form_settings(workbook)
+
+    current_run.log_info(f"Configuration template created at {output_f.as_posix()}")
+    current_run.add_file_output(output_f.as_posix())
 
 
 if __name__ == "__main__":
