@@ -25,22 +25,6 @@ from pathways.typing.tree import build_tree, merge_trees, parse_rpart
     required=False,
 )
 @parameter(
-    "add_choice_labels",
-    name="Add choice labels to links",
-    help="Add valid choice labels to relationship arrows instead of yes/no",
-    type=bool,
-    required=False,
-    default=False,
-)
-@parameter(
-    "add_node_id",
-    name="Add node indexes to mermaid shapes",
-    help="Add node indexes to mermaid shapes in addition to split rule",
-    type=bool,
-    required=False,
-    default=True,
-)
-@parameter(
     "output_dir",
     name="Output directory",
     help="If not specified, outputs will be saved into `workspace/typing/data/output/cart_diagram`",
