@@ -7,7 +7,7 @@ from pathlib import Path
 import polars as pl
 import xlsxwriter
 from openhexa.sdk import Dataset, current_run, parameter, pipeline, workspace
-from pathways.typing.config import read_google_spreadsheet
+from pathways.typing.config import get_config, read_google_spreadsheet
 from pathways.typing.mermaid import create_form_diagram
 from pathways.typing.options import (
     add_segment_notes,
@@ -128,7 +128,8 @@ def load_configuration(url: str) -> dict:
     """Load configuration from Google Sheets."""
     con = workspace.custom_connection("google-sheets")
     credentials = json.loads(con.credentials, strict=False)
-    return read_google_spreadsheet(url=url, credentials=credentials)
+    spreadsheet = read_google_spreadsheet(url=url, credentials=credentials)
+    return get_config(spreadsheet)
 
 
 @create_xlsform.task
