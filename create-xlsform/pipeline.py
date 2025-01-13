@@ -70,32 +70,13 @@ def create_xlsform(
     config_spreadsheet: str, cart_outputs: Dataset, version_name: str, output_dir: str
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
-    cart_urban, cart_rural, cart_version = load_dataset(
-        dataset=cart_outputs, version_name=version_name
-    )
-
-    output_dir = Path(
-        workspace.files_path,
-        output_dir,
-        cart_version,
-        datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
-    )
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+    data = load_dataset(dataset=cart_outputs, version_name=version_name)
     config = load_configuration(url=config_spreadsheet)
-
-    generate_form(
-        config=config,
-        urban_cart=cart_urban,
-        rural_cart=cart_rural,
-        output_dir=output_dir,
-        version=cart_version,
-    )
+    generate_form(config=config, cart_data=data, output_dir=output_dir)
 
 
-def load_dataset(
-    dataset: Dataset, version_name: str | None = None
-) -> tuple[list[dict], list[dict], str]:
+@create_xlsform.task
+def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
     """Load urban and rural JSON files from dataset.
 
     Parameters
@@ -107,12 +88,8 @@ def load_dataset(
 
     Return
     ------
-    list[dict]
-        The urban JSON-like CART data
-    list[dict]
-        The rural JSON-like CART data
-    str
-        The name of the dataset version
+    dict
+        The urban and rural JSON-like CART data with strata as key.
     """
     ds: Dataset = None
 
@@ -150,9 +127,10 @@ def load_dataset(
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
 
-    return urban, rural, ds.name
+    return {"urban": urban, "rural": rural, "version": ds.name}
 
 
+@create_xlsform.task
 def load_configuration(url: str) -> dict:
     """Load configuration from Google Sheets."""
     con = workspace.custom_connection("google-sheets")
@@ -179,10 +157,21 @@ def load_configuration(url: str) -> dict:
     return config
 
 
-def generate_form(
-    config: dict, urban_cart: dict, rural_cart: dict, output_dir: Path, version: str
-) -> None:
+@create_xlsform.task
+def generate_form(config: dict, cart_data: dict, output_dir: Path) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
+    rural_cart = cart_data["rural"]
+    urban_cart = cart_data["urban"]
+    version = cart_data["version"]
+
+    output_dir = Path(
+        workspace.files_path,
+        output_dir,
+        version,
+        datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     rural = parse_rpart(
         nodes=rural_cart["nodes"],
         ylevels=rural_cart["ylevels"],
