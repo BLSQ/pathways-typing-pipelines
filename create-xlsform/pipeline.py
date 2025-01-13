@@ -170,7 +170,7 @@ def generate_form(config: dict, cart_data: dict, output_dir: Path) -> None:
     for node in root.preorder():
         node.question = create_node_question(
             node,
-            question_config=config["questions"],
+            questions_config=config["questions"],
             choices_config=config["choices"],
             segments_config=config["segments"],
         )
