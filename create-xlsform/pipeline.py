@@ -135,26 +135,7 @@ def load_configuration(url: str) -> dict:
     """Load configuration from Google Sheets."""
     con = workspace.custom_connection("google-sheets")
     credentials = json.loads(con.credentials, strict=False)
-
-    config = {}
-
-    spreadsheet = read_google_spreadsheet(url=url, credentials=credentials)
-
-    config["questions"] = get_questions_config(
-        spreadsheet.get_worksheet("questions").get_all_records(head=2)
-    )
-    config["choices"] = get_choices_config(
-        spreadsheet.get_worksheet("choices").get_all_records(head=2)
-    )
-    config["options"] = get_options_config(
-        spreadsheet.get_worksheet("options").get_all_records(head=2)
-    )
-    config["segments"] = get_segments_config(
-        spreadsheet.get_worksheet("segments").get_all_records(head=2)
-    )
-    config["settings"] = get_settings(spreadsheet.get_worksheet("settings").get_all_records(head=2))
-
-    return config
+    return read_google_spreadsheet(url=url, credentials=credentials)
 
 
 @create_xlsform.task
