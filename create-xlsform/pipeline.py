@@ -7,14 +7,7 @@ from pathlib import Path
 import polars as pl
 import xlsxwriter
 from openhexa.sdk import Dataset, current_run, parameter, pipeline, workspace
-from pathways.typing.config import (
-    get_choices_config,
-    get_options_config,
-    get_questions_config,
-    get_segments_config,
-    get_settings,
-    read_google_spreadsheet,
-)
+from pathways.typing.config import read_google_spreadsheet
 from pathways.typing.mermaid import create_form_diagram
 from pathways.typing.options import (
     add_segment_notes,
