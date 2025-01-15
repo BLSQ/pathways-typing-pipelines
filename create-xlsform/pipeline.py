@@ -94,10 +94,10 @@ def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
                 ds = version
                 break
 
-            if ds is None:
-                msg = f"Dataset version `{version_name}` not found"
-                current_run.log_error(msg)
-                raise FileNotFoundError(msg)
+        if ds is None:
+            msg = f"Dataset version `{version_name}` not found"
+            current_run.log_error(msg)
+            raise FileNotFoundError(msg)
 
     else:
         ds = dataset.latest_version
