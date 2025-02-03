@@ -52,6 +52,22 @@ from pathways.typing.tree import (
     required=False,
 )
 @parameter(
+    "merge_duplicate_questions",
+    name="Merge duplicate questions",
+    help="Merge duplicate questions in the generated XLSForm",
+    type=bool,
+    required=False,
+    default=True,
+)
+@parameter(
+    "skip_unavailable_choices",
+    name="Skip unavailable choices",
+    help="Skip unavailable choices in the generated XLSForm",
+    type=bool,
+    required=False,
+    default=False,
+)
+@parameter(
     "output_dir",
     name="Output directory",
     help="Output directory where generated form is saved",
@@ -60,12 +76,23 @@ from pathways.typing.tree import (
     required=True,
 )
 def create_xlsform(
-    config_spreadsheet: str, cart_outputs: Dataset, version_name: str, output_dir: str
+    config_spreadsheet: str,
+    cart_outputs: Dataset,
+    version_name: str,
+    merge_duplicate_questions: bool,
+    skip_unavailable_choices: bool,
+    output_dir: str,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     data = load_dataset(dataset=cart_outputs, version_name=version_name)
     config = load_configuration(url=config_spreadsheet)
-    generate_form(config=config, cart_data=data, output_dir=output_dir)
+    generate_form(
+        config=config,
+        cart_data=data,
+        merge_duplicate_questions=merge_duplicate_questions,
+        skip_unavailable_choices=skip_unavailable_choices,
+        output_dir=output_dir,
+    )
 
 
 @create_xlsform.task
@@ -133,7 +160,13 @@ def load_configuration(url: str) -> dict:
 
 
 @create_xlsform.task
-def generate_form(config: dict, cart_data: dict, output_dir: Path) -> None:
+def generate_form(
+    config: dict,
+    cart_data: dict,
+    merge_duplicate_questions: bool,
+    skip_unavailable_choices: bool,
+    output_dir: Path,
+) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     rural_cart = cart_data["rural"]
     urban_cart = cart_data["urban"]
@@ -198,11 +231,13 @@ def generate_form(config: dict, cart_data: dict, output_dir: Path) -> None:
     root = enforce_relevance(root)
     current_run.log_info("Enforced relevance rules")
 
-    root = set_choice_filters(root)
-    current_run.log_info("Filtered available choices")
+    if skip_unavailable_choices:
+        root = set_choice_filters(root)
+        current_run.log_info("Filtered available choices")
 
-    root = skip_duplicate_questions(root)
-    current_run.log_info("Merged duplicate questions")
+    if merge_duplicate_questions:
+        root = skip_duplicate_questions(root)
+        current_run.log_info("Merged duplicate questions")
 
     rows = get_survey_rows(root, typing_group_label={"label::English (en)": "Typing"})
     survey = pl.DataFrame(rows)
