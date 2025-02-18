@@ -240,13 +240,13 @@ def generate_form(
         current_run.log_info("Merged duplicate questions")
 
     rows = get_survey_rows(root, typing_group_label={"label::English (en)": "Typing"})
-    survey = pl.DataFrame(rows)
+    survey = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_choices_rows(root)
-    choices = pl.DataFrame(rows)
+    choices = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_settings_rows(settings_config=config["settings"])
-    settings = pl.DataFrame(rows)
+    settings = pl.DataFrame(rows, infer_schema_length=1000)
 
     dst_file = Path(output_dir, f"{version}.xlsx")
 
