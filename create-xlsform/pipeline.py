@@ -46,7 +46,7 @@ from pathways.typing.tree import (
 )
 @parameter(
     "version_name",
-    name="Dataset version",
+    name="CART outputs (version)",
     help="You can specify the dataset version to use. If not specified, latest version is used.",
     type=str,
     required=False,
@@ -68,6 +68,13 @@ from pathways.typing.tree import (
     default=False,
 )
 @parameter(
+    "typing_tool_version",
+    name="Typing tool version",
+    help="Full version string of the generated typing tool",
+    type=str,
+    required=True,
+)
+@parameter(
     "output_dir",
     name="Output directory",
     help="Output directory where generated form is saved",
@@ -81,6 +88,7 @@ def create_xlsform(
     version_name: str,
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
+    typing_tool_version: str,
     output_dir: str,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
