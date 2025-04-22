@@ -28,7 +28,7 @@ from pathways.typing.tree import (
 )
 
 
-@pipeline("create-xlsform", name="Create XLSForm")
+@pipeline("create-xlsform")
 @parameter(
     "config_spreadsheet",
     name="Configuration spreadsheet",
