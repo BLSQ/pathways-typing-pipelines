@@ -179,7 +179,7 @@ def load_configuration(url: str, output_dir: Path) -> dict:
     # write spreadsheet to disk as backup
     dst_file = Path(output_dir, "form_config.xlsx")
     with open(dst_file, "wb") as f:
-        bytes = spreadsheet.export(ExportFormat.XLSX)
+        bytes = spreadsheet.export(ExportFormat.EXCEL)
         f.write(bytes)
 
     return get_config(spreadsheet)
