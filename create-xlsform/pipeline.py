@@ -6,6 +6,7 @@ from pathlib import Path
 
 import polars as pl
 import xlsxwriter
+from gspread.spreadsheet import ExportFormat
 from openhexa.sdk import Dataset, current_run, parameter, pipeline, workspace
 from pathways.typing.config import get_config, read_google_spreadsheet
 from pathways.typing.mermaid import create_form_diagram
@@ -93,6 +94,15 @@ def create_xlsform(
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     data = load_dataset(dataset=cart_outputs, version_name=version_name)
+
+    output_dir = Path(
+        workspace.files_path,
+        output_dir,
+        typing_tool_version,
+        datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     config = load_configuration(url=config_spreadsheet)
     generate_form(
         config=config,
@@ -100,6 +110,7 @@ def create_xlsform(
         merge_duplicate_questions=merge_duplicate_questions,
         skip_unavailable_choices=skip_unavailable_choices,
         output_dir=output_dir,
+        typing_tool_version=typing_tool_version,
     )
 
 
@@ -159,11 +170,18 @@ def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
 
 
 @create_xlsform.task
-def load_configuration(url: str) -> dict:
+def load_configuration(url: str, output_dir: Path) -> dict:
     """Load configuration from Google Sheets."""
     con = workspace.custom_connection("google-sheets")
     credentials = json.loads(con.credentials, strict=False)
     spreadsheet = read_google_spreadsheet(url=url, credentials=credentials)
+
+    # write spreadsheet to disk as backup
+    dst_file = Path(output_dir, "form_config.xlsx")
+    with open(dst_file, "wb") as f:
+        bytes = spreadsheet.export(ExportFormat.XLSX)
+        f.write(bytes)
+
     return get_config(spreadsheet)
 
 
@@ -174,19 +192,11 @@ def generate_form(
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
     output_dir: Path,
+    typing_tool_version: str,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     rural_cart = cart_data["rural"]
     urban_cart = cart_data["urban"]
-    version = cart_data["version"]
-
-    output_dir = Path(
-        workspace.files_path,
-        output_dir,
-        version,
-        datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
-    )
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     rural = parse_rpart(
         nodes=rural_cart["nodes"],
@@ -256,7 +266,7 @@ def generate_form(
     rows = get_settings_rows(settings_config=config["settings"])
     settings = pl.DataFrame(rows, infer_schema_length=1000)
 
-    dst_file = Path(output_dir, f"{version}.xlsx")
+    dst_file = Path(output_dir, f"{typing_tool_version}.xlsx")
 
     with xlsxwriter.Workbook(dst_file) as wb:
         survey.write_excel(wb, worksheet="survey")
@@ -267,7 +277,7 @@ def generate_form(
     current_run.add_file_output(dst_file.as_posix())
 
     mermaid = create_form_diagram(root, skip_notes=True)
-    fp = output_dir / f"{version}.txt"
+    fp = output_dir / f"{typing_tool_version}.txt"
     with fp.open("w") as f:
         f.write(mermaid)
     current_run.add_file_output(fp.as_posix())
