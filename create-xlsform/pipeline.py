@@ -103,7 +103,7 @@ def create_xlsform(
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    config = load_configuration(url=config_spreadsheet)
+    config = load_configuration(url=config_spreadsheet, output_dir=output_dir)
     generate_form(
         config=config,
         cart_data=data,
