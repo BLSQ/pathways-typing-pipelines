@@ -12,6 +12,7 @@ from pathways.typing.config import get_config, read_google_spreadsheet
 from pathways.typing.mermaid import create_form_diagram
 from pathways.typing.options import (
     add_segment_notes,
+    apply_hide_option,
     apply_options,
     enforce_relevance,
     set_choice_filters,
@@ -256,6 +257,13 @@ def generate_form(
     if merge_duplicate_questions:
         root = skip_duplicate_questions(root)
         current_run.log_info("Merged duplicate questions")
+
+    # apply hide options
+    for option in config["options"]:
+        for node in root.preorder():
+            src_question = option["config"]["src_question"]
+            if option["option"] == "hide" and node.name == src_question:
+                apply_hide_option(node, option["config"])
 
     for node in root.preorder():
         if node.question.type in ("integer", "decimal", "select_one", "text"):
