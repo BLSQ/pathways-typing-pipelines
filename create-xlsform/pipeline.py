@@ -257,6 +257,12 @@ def generate_form(
         root = skip_duplicate_questions(root)
         current_run.log_info("Merged duplicate questions")
 
+    for node in root.preorder():
+        if node.question.type in ("integer", "decimal", "select_one", "text"):
+            node.question.required = True
+        else:
+            node.question.required = False
+
     rows = get_survey_rows(root, typing_group_label={"label::English (en)": "Typing"})
     survey = pl.DataFrame(rows, infer_schema_length=1000)
 
