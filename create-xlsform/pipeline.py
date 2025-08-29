@@ -296,7 +296,7 @@ def generate_form(
 
     rows = get_choices_rows(root)
     if enable_screening:
-        rows = add_screening_choices(rows, config["screening_questions"])
+        rows = add_screening_choices(rows, config["screening_choices"])
     choices = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_settings_rows(settings_config=config["settings"])
