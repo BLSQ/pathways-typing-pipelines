@@ -18,6 +18,7 @@ from pathways.typing.options import (
     set_choice_filters,
     skip_duplicate_questions,
 )
+from pathways.typing.screening import add_screening_choices, add_screening_questions
 from pathways.typing.tree import (
     build_tree,
     create_node_question,
@@ -70,6 +71,14 @@ from pathways.typing.tree import (
     default=False,
 )
 @parameter(
+    "enable_screening",
+    name="Screening",
+    help="Append screening questions before main form",
+    type=bool,
+    required=False,
+    default=False,
+)
+@parameter(
     "typing_tool_version",
     name="Typing tool version",
     help="Full version string of the generated typing tool",
@@ -90,6 +99,7 @@ def create_xlsform(
     version_name: str,
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
+    enable_screening: bool,
     typing_tool_version: str,
     output_dir: str,
 ) -> None:
@@ -110,6 +120,7 @@ def create_xlsform(
         cart_data=data,
         merge_duplicate_questions=merge_duplicate_questions,
         skip_unavailable_choices=skip_unavailable_choices,
+        enable_screening=enable_screening,
         output_dir=output_dir,
         typing_tool_version=typing_tool_version,
     )
@@ -173,7 +184,7 @@ def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
 @create_xlsform.task
 def load_configuration(url: str, output_dir: Path) -> dict:
     """Load configuration from Google Sheets."""
-    con = workspace.custom_connection("google-sheets")
+    con = workspace.custom_connection("google-service-account")
     credentials = json.loads(con.credentials, strict=False)
     spreadsheet = read_google_spreadsheet(url=url, credentials=credentials)
 
@@ -192,6 +203,7 @@ def generate_form(
     cart_data: dict,
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
+    enable_screening: bool,
     output_dir: Path,
     typing_tool_version: str,
 ) -> None:
@@ -271,10 +283,20 @@ def generate_form(
         else:
             node.question.required = False
 
-    rows = get_survey_rows(root, typing_group_label={"label::English (en)": "Typing"})
+    rows = get_survey_rows(
+        root,
+        typing_group_label={"label::English (en)": "Typing"},
+        typing_group_relevance=config["settings"].get("typing_group_relevant"),
+    )
+    if enable_screening:
+        rows = add_screening_questions(
+            rows, config["screening_questions"], config["settings"]
+        )
     survey = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_choices_rows(root)
+    if enable_screening:
+        rows = add_screening_choices(rows, config["screening_questions"])
     choices = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_settings_rows(settings_config=config["settings"])
