@@ -283,15 +283,22 @@ def generate_form(
         else:
             node.question.required = False
 
+    # get typing group label from settings
+    # original key in settings uses the format "typing_group_label::English (en)"
+    # we want to use "label::English (en)" in output xlsform
+    typing_group_label: dict[str, str] = {"label::English (en)": "Typing"}
+    for key, value in config["settings"].items():
+        if key.startswith("typing_group_label") and value:
+            column_name = key.replace("typing_group", "")
+            typing_group_label[column_name] = value
+
     rows = get_survey_rows(
         root,
-        typing_group_label={"label::English (en)": "Typing"},
+        typing_group_label=typing_group_label,
         typing_group_relevance=config["settings"].get("typing_group_relevant"),
     )
     if enable_screening:
-        rows = add_screening_questions(
-            rows, config["screening_questions"], config["settings"]
-        )
+        rows = add_screening_questions(rows, config["screening_questions"], config["settings"])
     survey = pl.DataFrame(rows, infer_schema_length=1000)
 
     rows = get_choices_rows(root)
