@@ -289,7 +289,7 @@ def generate_form(
     typing_group_label: dict[str, str] = {"label::English (en)": "Typing"}
     for key, value in config["settings"].items():
         if key.startswith("typing_group_label") and value:
-            column_name = key.replace("typing_group", "")
+            column_name = key.replace("typing_group_", "")
             typing_group_label[column_name] = value
 
     rows = get_survey_rows(
