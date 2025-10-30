@@ -15,6 +15,7 @@ from pathways.typing.options import (
     apply_hide_option,
     apply_options,
     enforce_relevance,
+    exit_deadends,
     set_choice_filters,
     skip_duplicate_questions,
 )
@@ -71,6 +72,14 @@ from pathways.typing.tree import (
     default=False,
 )
 @parameter(
+    "exit_deadends_early",
+    name="Exit deadends early",
+    help="When choices lead to deadends, assign to most probable segment",
+    type=bool,
+    required=False,
+    default=True,
+)
+@parameter(
     "enable_screening",
     name="Screening",
     help="Append screening questions before main form",
@@ -99,6 +108,7 @@ def create_xlsform(
     version_name: str,
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
+    exit_deadends_early: bool,
     enable_screening: bool,
     typing_tool_version: str,
     output_dir: str,
@@ -120,6 +130,7 @@ def create_xlsform(
         cart_data=data,
         merge_duplicate_questions=merge_duplicate_questions,
         skip_unavailable_choices=skip_unavailable_choices,
+        exit_deadends_early=exit_deadends_early,
         enable_screening=enable_screening,
         output_dir=output_dir,
         typing_tool_version=typing_tool_version,
@@ -204,6 +215,7 @@ def generate_form(
     merge_duplicate_questions: bool,
     skip_unavailable_choices: bool,
     enable_screening: bool,
+    exit_deadends_early: bool,
     output_dir: Path,
     typing_tool_version: str,
 ) -> None:
@@ -282,6 +294,15 @@ def generate_form(
             node.question.required = True
         else:
             node.question.required = False
+
+    if exit_deadends_early:
+        root = exit_deadends(
+            root,
+            segments_config=config["segments"],
+            settings_config=config["settings"],
+            choices_config=config["choices"],
+        )
+        current_run.log_info("Handled logical deadends")
 
     # get typing group label from settings
     # original key in settings uses the format "typing_group_label::English (en)"
