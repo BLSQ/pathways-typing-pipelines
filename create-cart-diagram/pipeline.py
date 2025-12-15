@@ -38,27 +38,30 @@ def generate_cart_diagram(
     output_dir: str,
 ) -> None:
     """Create a CART diagram from CART outputs."""
-    urban, rural, version = load_dataset(dataset=cart_outputs, version_name=version_name)
+    data = load_dataset(dataset=cart_outputs, version_name=version_name)
 
     output_dir = Path(
         workspace.files_path,
         output_dir,
-        version,
+        data["version"],
         datetime.now().astimezone().strftime("%Y-%m-%d_%H:%M:%S"),
     )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    generate_mermaid(
-        urban_cart=urban,
-        rural_cart=rural,
-        output_dir=output_dir,
-        version_name=version,
-    )
+    if "urban" and "rural" in data:
+        generate_mermaid(
+            urban_cart=data["urban"],
+            rural_cart=data["rural"],
+            output_dir=output_dir,
+            version_name=data["version"],
+        )
+    else:
+        generate_mermaid_single(
+            single_cart=data["single"], output_dir=output_dir, version_name=data["version"]
+        )
 
 
-def load_dataset(
-    dataset: Dataset, version_name: str | None = None
-) -> tuple[list[dict], list[dict], str]:
+def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
     """Load urban and rural JSON files from dataset.
 
     Parameters
@@ -67,15 +70,6 @@ def load_dataset(
         The dataset containing the urban and rural JSON files.
     version_name : str, optional
         The name of the dataset version to use. If not specified, the latest version is used.
-
-    Return
-    ------
-    list[dict]
-        The urban JSON-like CART data
-    list[dict]
-        The rural JSON-like CART data
-    str
-        The name of the dataset version
     """
     ds: Dataset = None
 
@@ -96,28 +90,37 @@ def load_dataset(
         ds = dataset.latest_version
 
     # load urban & rural json files from dataset
-    urban: list[dict] = None
-    rural: list[dict] = None
+    urban: dict | None = None
+    rural: dict | None = None
+    single: dict | None = None
     for f in ds.files:
         if f.filename.endswith("cart_urban.json"):
             urban = json.loads(f.read().decode())
         if f.filename.endswith("cart_rural.json"):
             rural = json.loads(f.read().decode())
+        if f.filename == "cart.json":
+            single = json.loads(f.read().decode())
 
-    if urban is None:
+    if urban is None and not single:
         msg = "Urban JSON file not found in dataset"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
-    if rural is None:
+    if rural is None and not single:
         msg = "Rural JSON file not found in dataset"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
+    if not rural and not urban and not single:
+        msg = "No CART JSON files found in dataset"
+        current_run.log_error(msg)
+        raise FileNotFoundError(msg)
 
-    return urban, rural, ds.name
+    if urban and rural:
+        return {"urban": urban, "rural": rural, "version": ds.name}
+    return {"single": single, "version": ds.name}
 
 
 def generate_mermaid(
-    urban_cart: list[dict], rural_cart: list[dict], output_dir: Path, version_name: str
+    urban_cart: dict, rural_cart: dict, output_dir: Path, version_name: str
 ) -> None:
     """Generate a mermaid diagram from urban and rural CART outputs.
 
@@ -125,9 +128,9 @@ def generate_mermaid(
 
     Parameters
     ----------
-    urban_cart : list[dict]
+    urban_cart : dict
         The urban CART output (nodes as list of dicts)
-    rural_cart : list[dict]
+    rural_cart : dict
         The rural CART output (nodes as list of dicts)
     output_dir : Path
         The output directory to save the diagram
@@ -153,6 +156,38 @@ def generate_mermaid(
     root_rural = build_tree(rural, strata="rural")
     root_urban = build_tree(urban, strata="urban")
     root = merge_trees(root_rural, root_urban)
+    current_run.log_info("Successfully rebuilt CART tree")
+
+    mermaid = create_cart_diagram(root=root)
+    fp = output_dir / f"{version_name}.txt"
+    with fp.open("w") as f:
+        f.write(mermaid)
+
+    current_run.add_file_output(fp.as_posix())
+
+
+def generate_mermaid_single(single_cart: dict, output_dir: Path, version_name: str) -> None:
+    """Generate a mermaid diagram from a single CART output.
+
+    Parameters
+    ----------
+    single_cart : dict
+        The single CART output (nodes as list of dicts)
+    output_dir : Path
+        The output directory to save the diagram
+    version_name : str
+        The name of the dataset version
+    """
+
+    single = parse_rpart(
+        nodes=single_cart["nodes"],
+        ylevels=single_cart["ylevels"],
+        xlevels=single_cart["xlevels"],
+        csplit=single_cart["csplit"],
+    )
+    current_run.log_info("Successfully parsed CART")
+
+    root = build_tree(single, strata="urban")
     current_run.log_info("Successfully rebuilt CART tree")
 
     mermaid = create_cart_diagram(root=root)
