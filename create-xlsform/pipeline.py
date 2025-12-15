@@ -171,25 +171,35 @@ def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
     else:
         ds = dataset.latest_version
 
-    # load urban & rural json files from dataset
+    # 2 possibilities here: either we have 2 trees (urban and rural) in separate files
+    # or we have a single tree in 1 file
     urban: list[dict] = None
     rural: list[dict] = None
+    single: list[dict] = None
     for f in ds.files:
         if f.filename.endswith("cart_urban.json"):
             urban = json.loads(f.read().decode())
         if f.filename.endswith("cart_rural.json"):
             rural = json.loads(f.read().decode())
+        if f.filename == "cart.json":
+            single = json.loads(f.read().decode())
 
-    if urban is None:
+    if urban is None and not single:
         msg = "Urban JSON file not found in dataset"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
-    if rural is None:
+    if rural is None and not single:
         msg = "Rural JSON file not found in dataset"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
+    if not rural and not urban and not single:
+        msg = "No CART JSON files found in dataset"
+        current_run.log_error(msg)
+        raise FileNotFoundError(msg)
 
-    return {"urban": urban, "rural": rural, "version": ds.name}
+    if urban and rural:
+        return {"urban": urban, "rural": rural, "version": ds.name}
+    return {"single": single, "version": ds.name}
 
 
 @create_xlsform.task
@@ -220,29 +230,47 @@ def generate_form(
     typing_tool_version: str,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
-    rural_cart = cart_data["rural"]
-    urban_cart = cart_data["urban"]
+    if "rural" and "urban" in cart_data:
+        rural_cart = cart_data["rural"]
+        urban_cart = cart_data["urban"]
 
-    rural = parse_rpart(
-        nodes=rural_cart["nodes"],
-        ylevels=rural_cart["ylevels"],
-        xlevels=rural_cart["xlevels"],
-        csplit=rural_cart["csplit"],
-    )
-    current_run.log_info("Successfully parsed rural CART")
+        rural = parse_rpart(
+            nodes=rural_cart["nodes"],
+            ylevels=rural_cart["ylevels"],
+            xlevels=rural_cart["xlevels"],
+            csplit=rural_cart["csplit"],
+        )
+        current_run.log_info("Successfully parsed rural CART")
 
-    urban = parse_rpart(
-        nodes=urban_cart["nodes"],
-        ylevels=urban_cart["ylevels"],
-        xlevels=urban_cart["xlevels"],
-        csplit=urban_cart["csplit"],
-    )
-    current_run.log_info("Successfully parsed urban CART")
+        urban = parse_rpart(
+            nodes=urban_cart["nodes"],
+            ylevels=urban_cart["ylevels"],
+            xlevels=urban_cart["xlevels"],
+            csplit=urban_cart["csplit"],
+        )
+        current_run.log_info("Successfully parsed urban CART")
 
-    root_rural = build_tree(rural, strata="rural")
-    root_urban = build_tree(urban, strata="urban")
-    root = merge_trees(root_rural, root_urban)
-    current_run.log_info("Successfully rebuilt CART tree")
+        root_rural = build_tree(rural, strata="rural")
+        root_urban = build_tree(urban, strata="urban")
+        root = merge_trees(root_rural, root_urban)
+        current_run.log_info("Successfully rebuilt CART tree")
+    elif "single" in cart_data:
+        single_cart = cart_data["single"]
+
+        single = parse_rpart(
+            nodes=single_cart["nodes"],
+            ylevels=single_cart["ylevels"],
+            xlevels=single_cart["xlevels"],
+            csplit=single_cart["csplit"],
+        )
+        current_run.log_info("Successfully parsed single CART")
+
+        root = build_tree(single, strata="urban")
+        current_run.log_info("Successfully rebuilt CART tree")
+    else:
+        msg = "Not tree found in CART data"
+        current_run.log_error(msg)
+        raise ValueError(msg)
 
     for node in root.preorder():
         node.question = create_node_question(
