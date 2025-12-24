@@ -104,10 +104,10 @@ from pathways.typing.tree import (
 )
 @parameter(
     "low_confidence_threshold",
-    name="Low confidence threshold",
+    name="Low Confidence Threshold Percent",
     help="Enter percentage. Segments with confidence percentage below this threshold will be marked as low-confidence",
     type=float,
-    default=None,
+    default=0.0,
     required=False,
 )
 def create_xlsform(
@@ -120,7 +120,7 @@ def create_xlsform(
     enable_screening: bool,
     typing_tool_version: str,
     output_dir: str,
-    low_confidence_threshold: float | None,
+    low_confidence_threshold: float,  
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     data = load_dataset(dataset=cart_outputs, version_name=version_name)
@@ -227,7 +227,7 @@ def generate_form(
     exit_deadends_early: bool,
     output_dir: Path,
     typing_tool_version: str,
-    low_confidence_threshold: float | None = None,
+    low_confidence_threshold: float = 0,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     rural_cart = cart_data["rural"]
