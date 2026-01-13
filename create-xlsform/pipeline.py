@@ -102,6 +102,14 @@ from pathways.typing.tree import (
     default="typing/data/xlsform",
     required=True,
 )
+@parameter(
+    "low_confidence_threshold",
+    name="Low Confidence Threshold Percent",
+    help="Enter percentage. Segments with confidence percentage below this threshold will be marked as low-confidence",
+    type=float,
+    default=0.0,
+    required=False,
+)
 def create_xlsform(
     config_spreadsheet: str,
     cart_outputs: Dataset,
@@ -112,6 +120,7 @@ def create_xlsform(
     enable_screening: bool,
     typing_tool_version: str,
     output_dir: str,
+    low_confidence_threshold: float,  
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     data = load_dataset(dataset=cart_outputs, version_name=version_name)
@@ -123,7 +132,6 @@ def create_xlsform(
         datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S"),
     )
     output_dir.mkdir(parents=True, exist_ok=True)
-
     config = load_configuration(url=config_spreadsheet, output_dir=output_dir)
     generate_form(
         config=config,
@@ -134,6 +142,7 @@ def create_xlsform(
         enable_screening=enable_screening,
         output_dir=output_dir,
         typing_tool_version=typing_tool_version,
+        low_confidence_threshold=low_confidence_threshold,
     )
 
 
@@ -218,6 +227,7 @@ def generate_form(
     exit_deadends_early: bool,
     output_dir: Path,
     typing_tool_version: str,
+    low_confidence_threshold: float = 0,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     rural_cart = cart_data["rural"]
@@ -267,7 +277,10 @@ def generate_form(
     current_run.log_info("Applied custom options")
 
     root = add_segment_notes(
-        root, settings_config=config["settings"], segments_config=config["segments"]
+        root, 
+        settings_config=config["settings"], 
+        segments_config=config["segments"],
+        low_confidence_threshold=low_confidence_threshold,
     )
     current_run.log_info("Added segment notes")
 
@@ -339,8 +352,7 @@ def generate_form(
 
     current_run.log_info(f"Successfully generated XLSForm at {dst_file}")
     current_run.add_file_output(dst_file.as_posix())
-
-    mermaid = create_form_diagram(root, skip_notes=True)
+    mermaid = create_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
     fp = output_dir / f"{typing_tool_version}.txt"
     with fp.open("w") as f:
         f.write(mermaid)
