@@ -9,7 +9,7 @@ import xlsxwriter
 from gspread.spreadsheet import ExportFormat
 from openhexa.sdk import Dataset, current_run, parameter, pipeline, workspace
 from pathways.typing.config import get_config, read_google_spreadsheet
-from pathways.typing.mermaid import create_form_diagram
+from pathways.typing.mermaid import create_default_form_diagram, create_detailed_form_diagram
 from pathways.typing.options import (
     add_segment_notes,
     apply_hide_option,
@@ -352,11 +352,20 @@ def generate_form(
 
     current_run.log_info(f"Successfully generated XLSForm at {dst_file}")
     current_run.add_file_output(dst_file.as_posix())
-    mermaid = create_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
-    fp = output_dir / f"{typing_tool_version}.txt"
-    with fp.open("w") as f:
-        f.write(mermaid)
-    current_run.add_file_output(fp.as_posix())
+
+    # Default diagram 
+    default_mermaid = create_default_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    default_fp = output_dir / f"{typing_tool_version}_default.txt"
+    with default_fp.open("w") as f:
+        f.write(default_mermaid)
+    current_run.add_file_output(default_fp.as_posix())
+
+    # Detailed diagram 
+    detailed_mermaid = create_detailed_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    detailed_fp = output_dir / f"{typing_tool_version}_detailed.txt"
+    with detailed_fp.open("w") as f:
+        f.write(detailed_mermaid)
+    current_run.add_file_output(detailed_fp.as_posix())
 
 
 if __name__ == "__main__":
