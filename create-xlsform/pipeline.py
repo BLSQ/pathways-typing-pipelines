@@ -120,7 +120,7 @@ def create_xlsform(
     enable_screening: bool,
     typing_tool_version: str,
     output_dir: str,
-    low_confidence_threshold: float,  
+    low_confidence_threshold: float,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
     data = load_dataset(dataset=cart_outputs, version_name=version_name)
@@ -180,25 +180,31 @@ def load_dataset(dataset: Dataset, version_name: str | None = None) -> dict:
     else:
         ds = dataset.latest_version
 
-    # load urban & rural json files from dataset
-    urban: list[dict] = None
-    rural: list[dict] = None
+    cart_files: dict[str, str] = {}
     for f in ds.files:
-        if f.filename.endswith("cart_urban.json"):
-            urban = json.loads(f.read().decode())
-        if f.filename.endswith("cart_rural.json"):
-            rural = json.loads(f.read().decode())
+        if (
+            f.filename.endswith("cart.json")
+            and "urban" not in f.filename
+            and "rural" not in f.filename
+        ):
+            cart_files["single"] = json.loads(f.read().decode())
+        elif f.filename.endswith("cart_urban.json"):
+            cart_files["urban"] = json.loads(f.read().decode())
+        elif f.filename.endswith("cart_rural.json"):
+            cart_files["rural"] = json.loads(f.read().decode())
 
-    if urban is None:
-        msg = "Urban JSON file not found in dataset"
+    if "single" not in cart_files and ("urban" not in cart_files or "rural" not in cart_files):
+        msg = "Required CART JSON files not found in dataset"
         current_run.log_error(msg)
         raise FileNotFoundError(msg)
-    if rural is None:
-        msg = "Rural JSON file not found in dataset"
-        current_run.log_error(msg)
-        raise FileNotFoundError(msg)
 
-    return {"urban": urban, "rural": rural, "version": ds.name}
+    if "single" in cart_files:
+        return {"strata": None, "carts": [cart_files["single"]], "version": ds.name}
+    return {
+        "strata": ["urban", "rural"],
+        "carts": [cart_files["urban"], cart_files["rural"]],
+        "version": ds.name,
+    }
 
 
 @create_xlsform.task
@@ -230,29 +236,35 @@ def generate_form(
     low_confidence_threshold: float = 0,
 ) -> None:
     """Build XLSForm from CART outputs and configuration spreadsheet."""
-    rural_cart = cart_data["rural"]
-    urban_cart = cart_data["urban"]
+    if cart_data["strata"] is None:
+        cart: dict = cart_data["carts"][0]
+        parsed = parse_rpart(
+            nodes=cart["nodes"],
+            ylevels=cart["ylevels"],
+            xlevels=cart["xlevels"],
+            csplit=cart["csplit"],
+        )
+        root = build_tree(parsed)
+        current_run.log_info("Successfully parsed single CART")
 
-    rural = parse_rpart(
-        nodes=rural_cart["nodes"],
-        ylevels=rural_cart["ylevels"],
-        xlevels=rural_cart["xlevels"],
-        csplit=rural_cart["csplit"],
-    )
-    current_run.log_info("Successfully parsed rural CART")
-
-    urban = parse_rpart(
-        nodes=urban_cart["nodes"],
-        ylevels=urban_cart["ylevels"],
-        xlevels=urban_cart["xlevels"],
-        csplit=urban_cart["csplit"],
-    )
-    current_run.log_info("Successfully parsed urban CART")
-
-    root_rural = build_tree(rural, strata="rural")
-    root_urban = build_tree(urban, strata="urban")
-    root = merge_trees(root_rural, root_urban)
-    current_run.log_info("Successfully rebuilt CART tree")
+    else:
+        rural_cart, urban_cart = cart_data["carts"]
+        rural = parse_rpart(
+            nodes=rural_cart["nodes"],
+            ylevels=rural_cart["ylevels"],
+            xlevels=rural_cart["xlevels"],
+            csplit=rural_cart["csplit"],
+        )
+        urban = parse_rpart(
+            nodes=urban_cart["nodes"],
+            ylevels=urban_cart["ylevels"],
+            xlevels=urban_cart["xlevels"],
+            csplit=urban_cart["csplit"],
+        )
+        root_rural = build_tree(rural, strata="rural")
+        root_urban = build_tree(urban, strata="urban")
+        root = merge_trees(root_rural, root_urban)
+        current_run.log_info("Successfully rebuilt CART tree")
 
     for node in root.preorder():
         node.question = create_node_question(
@@ -277,8 +289,8 @@ def generate_form(
     current_run.log_info("Applied custom options")
 
     root = add_segment_notes(
-        root, 
-        settings_config=config["settings"], 
+        root,
+        settings_config=config["settings"],
         segments_config=config["segments"],
         low_confidence_threshold=low_confidence_threshold,
     )
@@ -353,15 +365,19 @@ def generate_form(
     current_run.log_info(f"Successfully generated XLSForm at {dst_file}")
     current_run.add_file_output(dst_file.as_posix())
 
-    # Default diagram 
-    default_mermaid = create_default_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    # Default diagram
+    default_mermaid = create_default_form_diagram(
+        root, skip_notes=True, threshold=low_confidence_threshold
+    )
     default_fp = output_dir / f"{typing_tool_version}_default.txt"
     with default_fp.open("w") as f:
         f.write(default_mermaid)
     current_run.add_file_output(default_fp.as_posix())
 
-    # Detailed diagram 
-    detailed_mermaid = create_detailed_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    # Detailed diagram
+    detailed_mermaid = create_detailed_form_diagram(
+        root, skip_notes=True, threshold=low_confidence_threshold
+    )
     detailed_fp = output_dir / f"{typing_tool_version}_detailed.txt"
     with detailed_fp.open("w") as f:
         f.write(detailed_mermaid)
