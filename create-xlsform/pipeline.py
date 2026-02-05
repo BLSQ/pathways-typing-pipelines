@@ -12,6 +12,7 @@ from pathways.typing.config import get_config, read_google_spreadsheet
 from pathways.typing.mermaid import create_default_form_diagram, create_detailed_form_diagram
 from pathways.typing.options import (
     add_segment_notes,
+    add_triggers_for_select_multiple,
     apply_hide_option,
     apply_options,
     enforce_relevance,
@@ -299,6 +300,9 @@ def generate_form(
     root = enforce_relevance(root)
     current_run.log_info("Enforced relevance rules")
 
+    add_triggers_for_select_multiple(root)
+    current_run.log_info("Added triggers for select_multiple questions")
+
     if skip_unavailable_choices:
         root = set_choice_filters(root)
         current_run.log_info("Filtered available choices")
@@ -328,6 +332,9 @@ def generate_form(
             choices_config=config["choices"],
         )
         current_run.log_info("Handled logical deadends")
+
+        root = enforce_relevance(root)
+        current_run.log_info("Re-enforced relevance rules after handling deadends")
 
     # get typing group label from settings
     # original key in settings uses the format "typing_group_label::English (en)"
