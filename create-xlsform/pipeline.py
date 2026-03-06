@@ -354,14 +354,14 @@ def generate_form(
     current_run.add_file_output(dst_file.as_posix())
 
     # Default diagram 
-    default_mermaid = create_default_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    default_mermaid = create_default_form_diagram(root, config["choices"], skip_notes=True, threshold=low_confidence_threshold)
     default_fp = output_dir / f"{typing_tool_version}_default.txt"
     with default_fp.open("w") as f:
         f.write(default_mermaid)
     current_run.add_file_output(default_fp.as_posix())
 
     # Detailed diagram 
-    detailed_mermaid = create_detailed_form_diagram(root, skip_notes=True, threshold=low_confidence_threshold)
+    detailed_mermaid = create_detailed_form_diagram(root, config["choices"], skip_notes=True, threshold=low_confidence_threshold)
     detailed_fp = output_dir / f"{typing_tool_version}_detailed.txt"
     with detailed_fp.open("w") as f:
         f.write(detailed_mermaid)
