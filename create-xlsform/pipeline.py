@@ -249,7 +249,7 @@ def generate_form(
         current_run.log_info("Successfully parsed single CART")
 
     else:
-        rural_cart, urban_cart = cart_data["carts"]
+        urban_cart, rural_cart = cart_data["carts"]
         rural = parse_rpart(
             nodes=rural_cart["nodes"],
             ylevels=rural_cart["ylevels"],
