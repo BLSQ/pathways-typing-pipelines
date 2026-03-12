@@ -374,7 +374,7 @@ def generate_form(
 
     # Default diagram
     default_mermaid = create_default_form_diagram(
-        root, skip_notes=True, threshold=low_confidence_threshold
+        root, config["choices"], skip_notes=True, threshold=low_confidence_threshold
     )
     default_fp = output_dir / f"{typing_tool_version}_default.txt"
     with default_fp.open("w") as f:
@@ -383,7 +383,7 @@ def generate_form(
 
     # Detailed diagram
     detailed_mermaid = create_detailed_form_diagram(
-        root, skip_notes=True, threshold=low_confidence_threshold
+        root, config["choices"], skip_notes=True, threshold=low_confidence_threshold
     )
     detailed_fp = output_dir / f"{typing_tool_version}_detailed.txt"
     with detailed_fp.open("w") as f:
