@@ -300,9 +300,6 @@ def generate_form(
     root = enforce_relevance(root)
     current_run.log_info("Enforced relevance rules")
 
-    add_triggers_for_select_multiple(root)
-    current_run.log_info("Added triggers for select_multiple questions")
-
     if skip_unavailable_choices:
         root = set_choice_filters(root)
         current_run.log_info("Filtered available choices")
@@ -310,6 +307,9 @@ def generate_form(
     if merge_duplicate_questions:
         root = skip_duplicate_questions(root)
         current_run.log_info("Merged duplicate questions")
+
+    add_triggers_for_select_multiple(root)
+    current_run.log_info("Added triggers for select_multiple questions")
 
     # apply hide options
     for option in config["options"]:
