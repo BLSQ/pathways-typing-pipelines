@@ -19,6 +19,7 @@ from pathways.typing.options import (
     exit_deadends,
     set_choice_filters,
     skip_duplicate_questions,
+    skip_location_from_screening,
 )
 from pathways.typing.screening import add_screening_choices, add_screening_questions
 from pathways.typing.tree import (
@@ -288,6 +289,13 @@ def generate_form(
         choices_config=config["choices"],
     )
     current_run.log_info("Applied custom options")
+
+    screening_location = config["settings"].get("location_in_screening")
+    if screening_location is not None and enable_screening:
+        root = skip_location_from_screening(root, screening_location)
+        current_run.log_info(
+            f"Skipped location question from screening based on setting `{screening_location}`"
+        )
 
     root = add_segment_notes(
         root,
