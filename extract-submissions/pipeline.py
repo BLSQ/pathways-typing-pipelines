@@ -256,11 +256,17 @@ def _export_csv(engine, table_name: str, csv_path: Path):
 
 def _full_replace(df: pl.DataFrame, table_name: str, db_url: str):
     """Drop and recreate the table with the full dataset."""
+    engine = create_engine(db_url)
     df.write_database(
         table_name,
         db_url,
         if_table_exists="replace",
     )
+    with engine.connect() as conn:
+        conn.execute(
+            text(f"ALTER TABLE {table_name} ADD CONSTRAINT {table_name}_id_unique UNIQUE (id)")
+        )
+        conn.commit()
 
 
 def _upsert_rows(df: pl.DataFrame, table_name: str, engine):
