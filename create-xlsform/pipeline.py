@@ -353,10 +353,15 @@ def generate_form(
             column_name = key.replace("typing_group_", "")
             typing_group_label[column_name] = value
 
+    if enable_screening:
+        typing_group_relevance = config["settings"].get("typing_group_relevant")
+    else:
+        typing_group_relevance = None
+
     rows = get_survey_rows(
         root,
         typing_group_label=typing_group_label,
-        typing_group_relevance=config["settings"].get("typing_group_relevant"),
+        typing_group_relevance=typing_group_relevance,
     )
     if enable_screening:
         rows = add_screening_questions(rows, config["screening_questions"], config["settings"])
